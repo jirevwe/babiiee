@@ -1,9 +1,8 @@
 import { Page } from '../page';
 import { Fetcher } from '../fetcher';
-import { parentPort } from 'worker_threads';
 
-export async function fetchHtmlAndExtractLink(message: {
-  parent: string;
+export default async function fetchHtmlAndExtractLink(message: {
+  parentUrl: string;
   currentUrl: string;
 }) {
   const fetcher = new Fetcher();
@@ -12,11 +11,9 @@ export async function fetchHtmlAndExtractLink(message: {
   const res = await fetcher.fetch(message.currentUrl);
   const urls = page.getPageUrls(res.window.document);
 
-  parentPort.postMessage({
-    parent: message.parent,
+  return {
+    parentUrl: message.parentUrl,
     currentUrl: message.currentUrl,
-    childrenUrls: urls
-  });
+    childrenUrls: urls.filter((it) => it.length > 0)
+  };
 }
-
-parentPort.on('message', fetchHtmlAndExtractLink);

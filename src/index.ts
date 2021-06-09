@@ -1,73 +1,73 @@
-import { Worker } from 'worker_threads';
-import { join } from 'path';
-import { Page } from './page';
-import { Fetcher } from './fetcher';
 import Graph from 'graph-data-structure';
+import PromisePool from 'es6-promise-pool';
+import fetchHtmlAndExtractLink from './worker';
+
+/**
+ * traverseBatched is like `traverse` but run in dynamic batches. i.e.
+ * there'll never be more than `batchSize` runnning concurrently
+ * @param ts the data to work on
+ * @param batchSize the upper bound on concurrent promises
+ * @param fn the worker function itself.
+ */
+export async function traverseBatched<T>(
+  ts: T[],
+  batchSize: number,
+  fn: (t: T, i: number) => Promise<void>
+) {
+  let index = 0;
+
+  const pool = new PromisePool(runTask, batchSize);
+
+  function runTask() {
+    if (index >= ts.length) {
+      return null;
+    }
+
+    const value = ts[index];
+
+    // update index for next iteration
+    index += 1;
+
+    return fn(value, index - 1);
+  }
+
+  return pool.start();
+}
 
 async function run() {
-  const parentUrl = 'https://monzo.com/';
-  const workers = initWorkers(10);
-
-  const queue = [parentUrl];
+  const rootUrl = 'https://monzo.com/';
+  const threads = 20;
 
   // this is a cache of visited urls
   const graph = Graph();
+  const queue = [{ parentUrl: null, currentUrl: rootUrl }];
 
-  const fetcher = new Fetcher();
-  const page = new Page(parentUrl);
+  // continue until the queue is empty
+  while (queue.length > 0) {
+    console.log('before: ' + queue.length + '\n');
+    const min = Math.min(queue.length, threads);
+    const items = queue.splice(0, min);
 
-  const res = await fetcher.fetch(parentUrl);
-  const urls = page.getPageUrls(res.window.document);
-  queue.push(...urls);
+    await traverseBatched(items, threads, async (item, i) => {
+      const set = await fetchHtmlAndExtractLink(item);
 
-  // register callback
-  for (const w of workers) {
-    // process the first item on the queue
-    w.postMessage(queue.shift());
+      console.log(
+        '🤝' + set.currentUrl + '\n\t' + set.childrenUrls.join('\n\t')
+      );
+      graph.addNode(set.currentUrl);
+      graph.addEdge(set.parentUrl, set.currentUrl);
 
-    // the worker thread has completed it's work
-    w.on(
-      'message',
-      (message: {
-        parentUrl: string;
-        currentUrl: string;
-        childrenUrls: string[];
-      }) => {
-        graph.addNode(message.currentUrl);
-        graph.addEdge(message.parentUrl, message.currentUrl);
+      for (const url of set.childrenUrls) {
+        const doesNotExist = queue.find((it) => it.currentUrl === url) !== null;
 
-        for (const url of message.childrenUrls) {
-          if (!graph.nodes().includes(url)) {
-            queue.push(url);
-          }
-        }
-
-        if (queue.length > 0) {
-          const newUrl = queue.shift();
-          w.postMessage({ parent: message.currentUrl, currentUrl: newUrl });
+        if (!graph.nodes().includes(url) && doesNotExist) {
+          queue.push({ parentUrl: set.currentUrl, currentUrl: url });
         }
       }
-    );
-
-    w.on('error', (error) => {
-      console.log(error);
     });
 
-    w.on('exit', (code) => {
-      console.log(code);
-    });
+    console.log('after: ' + queue.length + '\n');
   }
-}
-
-function initWorkers(count: number): Worker[] {
-  const workers = [];
-
-  for (let i = 0; i < count; i++) {
-    const worker = new Worker(join(__dirname, './worker/index.js'));
-    workers.push(worker);
-  }
-
-  return workers;
 }
 
 run();
