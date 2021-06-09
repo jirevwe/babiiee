@@ -1,0 +1,35 @@
+{
+  "name": "baby",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "scripts": {
+    "start": "node ./dist",
+    "watch:tsc": "rm -rf ./dist && tsc --watch -p ./tsconfig.json",
+    "build:tsc": "tsc -p ./tsconfig.json",
+    "test": "jest"
+  },
+  "author": "rtukpe@gmail.com",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "command-line-args": "^5.1.1",
+    "command-line-usage": "^6.1.1",
+    "jsdom": "^16.6.0",
+    "piscina": "^3.1.0",
+    "typescript": "^4.3.2"
+  },
+  "devDependencies": {
+    "@types/command-line-args": "^5.0.0",
+    "@types/command-line-usage": "^5.0.1",
+    "@types/jest": "^26.0.23",
+    "@types/jsdom": "^16.2.10",
+    "@types/node": "^15.12.1",
+    "jest": "^27.0.3",
+    "ts-jest": "^27.0.2",
+    "ts-node": "^10.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
+  }
+}
