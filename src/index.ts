@@ -2,16 +2,16 @@ import { Worker } from 'worker_threads';
 import { join } from 'path';
 import { Page } from './page';
 import { Fetcher } from './fetcher';
+import Graph from 'graph-data-structure';
 
 async function run() {
   const parentUrl = 'https://monzo.com/';
-  const workers = initWorkers(20);
+  const workers = initWorkers(10);
 
   const queue = [parentUrl];
-  const set = new Set();
 
-  // scrape the home page
-  set.add(queue[0]);
+  // this is a cache of visited urls
+  const graph = Graph();
 
   const fetcher = new Fetcher();
   const page = new Page(parentUrl);
@@ -25,20 +25,29 @@ async function run() {
     // process the first item on the queue
     w.postMessage(queue.shift());
 
-    // the worker has completed it's work
-    w.on('message', (message) => {
-      for (const url of message) {
-        queue.push(url);
-      }
+    // the worker thread has completed it's work
+    w.on(
+      'message',
+      (message: {
+        parentUrl: string;
+        currentUrl: string;
+        childrenUrls: string[];
+      }) => {
+        graph.addNode(message.currentUrl);
+        graph.addEdge(message.parentUrl, message.currentUrl);
 
-      console.log(queue.length, set.size, queue[0], w.threadId);
+        for (const url of message.childrenUrls) {
+          if (!graph.nodes().includes(url)) {
+            queue.push(url);
+          }
+        }
 
-      const newUrl = queue.shift();
-      if (!set.has(newUrl)) {
-        set.add(newUrl);
+        if (queue.length > 0) {
+          const newUrl = queue.shift();
+          w.postMessage({ parent: message.currentUrl, currentUrl: newUrl });
+        }
       }
-      w.postMessage(newUrl);
-    });
+    );
 
     w.on('error', (error) => {
       console.log(error);
