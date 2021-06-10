@@ -1,73 +1,141 @@
-import Graph from 'graph-data-structure';
-import PromisePool from 'es6-promise-pool';
-import fetchHtmlAndExtractLink from './worker';
-
-/**
- * traverseBatched is like `traverse` but run in dynamic batches. i.e.
- * there'll never be more than `batchSize` runnning concurrently
- * @param ts the data to work on
- * @param batchSize the upper bound on concurrent promises
- * @param fn the worker function itself.
- */
-export async function traverseBatched<T>(
-  ts: T[],
-  batchSize: number,
-  fn: (t: T, i: number) => Promise<void>
-) {
-  let index = 0;
-
-  const pool = new PromisePool(runTask, batchSize);
-
-  function runTask() {
-    if (index >= ts.length) {
-      return null;
-    }
-
-    const value = ts[index];
-
-    // update index for next iteration
-    index += 1;
-
-    return fn(value, index - 1);
-  }
-
-  return pool.start();
-}
+import { join } from 'path';
+import { Worker } from 'worker_threads';
+import { Fetcher } from './fetcher';
+import { Page } from './page';
+import { setTimeout } from 'timers/promises';
+import { WorkerRequest, WorkerResponse } from 'common';
+import EventEmitter from 'events';
 
 async function run() {
+  let visitedCount = 0;
+  let totalTime = 0;
+  const timeout = 1000 * 30;
   const rootUrl = 'https://monzo.com/';
   const threads = 20;
+  const workers = initWorkers(threads);
 
-  // this is a cache of visited urls
-  const graph = Graph();
-  const queue = [{ parentUrl: null, currentUrl: rootUrl }];
+  const ee = new EventEmitter();
 
-  // continue until the queue is empty
-  while (queue.length > 0) {
-    console.log('before: ' + queue.length + '\n');
-    const min = Math.min(queue.length, threads);
-    const items = queue.splice(0, min);
+  ee.on('done', () => {
+    while (queue) {}
+  });
 
-    await traverseBatched(items, threads, async (item, i) => {
-      const set = await fetchHtmlAndExtractLink(item);
+  const set = new Set();
+  const queue = [];
 
-      console.log(
-        '🤝' + set.currentUrl + '\n\t' + set.childrenUrls.join('\n\t')
-      );
-      graph.addNode(set.currentUrl);
-      graph.addEdge(set.parentUrl, set.currentUrl);
+  const root = { parentUrl: null, currentUrl: rootUrl };
+  const fetcher = new Fetcher(timeout);
+  const page = new Page(root.currentUrl);
 
-      for (const url of set.childrenUrls) {
-        const doesNotExist = queue.find((it) => it.currentUrl === url) !== null;
+  const res = await fetcher.fetch(root.currentUrl);
+  const urls = page.getPageUrls(res.window.document);
 
-        if (!graph.nodes().includes(url) && doesNotExist) {
-          queue.push({ parentUrl: set.currentUrl, currentUrl: url });
+  const payload: WorkerResponse = {
+    timing: 0,
+    status: 'success',
+    parentUrl: root.parentUrl,
+    currentUrl: root.currentUrl,
+    childrenUrls: urls.filter((it) => it.length > 0)
+  };
+
+  ++visitedCount;
+  set.add(payload.currentUrl);
+
+  console.log(
+    `🤝 (${visitedCount}) ` +
+      payload.currentUrl +
+      '\n\t' +
+      payload.childrenUrls.join('\n\t')
+  );
+
+  for (const url of payload.childrenUrls) {
+    const doesNotExist =
+      queue.filter((it) => it.currentUrl === url).length === 0;
+
+    if (!set.has(url) && doesNotExist) {
+      const req = {
+        parentUrl: payload.currentUrl,
+        currentUrl: url,
+        timeout,
+        rootUrl
+      };
+
+      queue.push(req);
+    }
+  }
+
+  // push initial workload to the workers
+  workers.forEach((w) => w.postMessage(queue.shift()));
+
+  //register callback
+  for (const w of workers) {
+    // the worker thread has completed it's work
+    w.on('message', (payload: WorkerResponse) => {
+      if (payload.status === 'success') {
+        visitedCount += 1;
+        totalTime += payload.timing;
+
+        set.add(payload.currentUrl);
+
+        // console.log(
+        //   `🤝 (${visitedCount}, ${(message.timing / 1000).toPrecision(2)}s) ` +
+        //     message.currentUrl +
+        //     '\n\t' +
+        //     message.childrenUrls.join('\n\t')
+        // );
+
+        for (const url of payload.childrenUrls) {
+          const doesNotExist =
+            queue.filter((it) => it.currentUrl === url).length === 0;
+
+          if (!set.has(url) && doesNotExist) {
+            const req: WorkerRequest = {
+              parentUrl: payload.currentUrl,
+              currentUrl: url,
+              timeout,
+              rootUrl
+            };
+
+            queue.push(req);
+          }
         }
       }
+
+      if (payload.status === 'failed') {
+        set.add(payload.currentUrl);
+
+        console.log(`😩 ${payload.currentUrl} => ${payload.message}`);
+      }
+
+      if (queue.length < 1) {
+        console.log(queue);
+      }
+
+      console.log(queue.length, set.size);
+      w.postMessage(queue.shift());
     });
 
-    console.log('after: ' + queue.length + '\n');
+    w.on('error', async (error) => {
+      console.log(`⚙️ Worker Error Event: ${error.message}`);
+
+      // wait for one second then check the queue again
+      await setTimeout(1000);
+      w.postMessage(queue.shift());
+    });
+
+    w.on('exit', (code) => console.log(code));
   }
+}
+
+function initWorkers(count: number): Worker[] {
+  const workers = [];
+
+  for (let i = 0; i < count; i++) {
+    const worker = new Worker(join(__dirname, './worker/index.js'));
+    workers.push(worker);
+  }
+
+  return workers;
 }
 
 run();

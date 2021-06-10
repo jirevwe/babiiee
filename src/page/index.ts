@@ -72,7 +72,6 @@ export class Page {
 
       return url;
     } catch (error) {
-      console.log(error);
       return '';
     }
   }
