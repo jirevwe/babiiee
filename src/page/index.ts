@@ -43,9 +43,9 @@ export class Page {
       }
 
       // handle weird edge case with "..blog/team" relative url
-      if (url.startsWith('.')) {
-        url = url.replace(/^../gi, '');
-      }
+      // if (url.startsWith('.')) {
+      //   url = url.replace(/^../gi, '');
+      // }
 
       // transform relative urls to absolute urls
       if (url.startsWith('/')) {

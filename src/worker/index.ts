@@ -2,7 +2,7 @@ import { Page } from '../page';
 import { Fetcher } from '../fetcher';
 import { parentPort } from 'worker_threads';
 import { performance } from 'perf_hooks';
-import { WorkerRequest, WorkerResponse } from 'common';
+import { WorkerRequest, WorkerResponse } from '../typings';
 
 export default async function fetchHtmlAndExtractLink(message: WorkerRequest) {
   try {
@@ -19,7 +19,6 @@ export default async function fetchHtmlAndExtractLink(message: WorkerRequest) {
     const payload: WorkerResponse = {
       status: 'success',
       timing: end - start,
-      parentUrl: message.parentUrl,
       currentUrl: message.currentUrl,
       childrenUrls: urls.filter((it) => it.length > 0)
     };
