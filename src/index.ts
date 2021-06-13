@@ -1,89 +1,46 @@
-import { join } from 'path';
-import { WorkerRequest, WorkerResponse } from './typings';
-import { ThreadPool } from './pool';
-import { Timing } from './timing';
-import { Mutex } from 'async-mutex';
-import { isMainThread } from 'worker_threads';
+import commandLineArgs from 'command-line-args';
+import commandLineUsage from 'command-line-usage';
+import { sections, optionDefinitions } from './constants';
+import { Crawler } from './crawler/crawler';
 
 async function run() {
-  const httpTimeout = 1000 * 30;
-  const rootUrl = 'https://crawler-test.com/';
+  const usage = commandLineUsage(sections);
 
-  const set = new Set();
-  const timing = new Timing();
-  const mutex = new Mutex();
+  try {
+    const options = commandLineArgs(optionDefinitions);
 
-  const execFile = join(__dirname, './worker/index.js');
-  const pool = new ThreadPool<WorkerRequest, WorkerResponse>({
-    execFile,
-    jobCallback,
-    timeOutCallback,
-    threadTimeout: 3
-  });
+    const requiredArgs = ['url'];
+    const argKeys = Object.keys(options).filter((it) => it !== 'help');
 
-  function timeOutCallback() {
-    timing.end();
+    if (options.help || argKeys.length === 0) {
+      console.log(usage);
+      process.exit(0);
+    }
 
-    console.log(
-      `Total: ${timing.total()}. Completed: ${timing.visitedUrls}. Failed: ${
-        timing.failedUrls
-      }` +
-        `\n Finished crawling ${timing.total()} URLs in ${timing.toHumanReadableTime()}`
-    );
-    process.exit(0);
+    const missingArgs = [];
+    for (const param of requiredArgs) {
+      if (!argKeys.includes(param)) missingArgs.push(param);
+    }
+
+    if (missingArgs.length > 0) {
+      console.log(`missing required arguments: ${missingArgs.join(', ')}`);
+      console.log(usage);
+
+      process.exit(1);
+    }
+
+    const rootUrl = options.url.endsWith('/') ? options.url : options.url + '/';
+    const httpTimeout: number = parseInt(options.timeout) || 1000 * 30;
+    const threadCount: number = parseInt(options.concurrency) || 3;
+
+    const crawler = new Crawler();
+    crawler.crawl(rootUrl, httpTimeout, threadCount);
+  } catch (error) {
+    console.log(error.message);
+    console.log(usage);
+
+    process.exit(1);
   }
-
-  async function jobCallback(payload: WorkerResponse) {
-    await mutex.runExclusive(async () => {
-      if (payload.status === 'success') {
-        set.add(payload.currentUrl);
-        timing.visit();
-
-        console.log(
-          `🤝 (${timing.visitedUrls}) ` +
-            payload.currentUrl +
-            '\n\t' +
-            payload.childrenUrls.join('\n\t')
-        );
-
-        for (const url of payload.childrenUrls) {
-          const doesNotExist =
-            pool.queue.filter((it) => it.currentUrl === url).length === 0;
-
-          if (!set.has(url) && doesNotExist) {
-            const req: WorkerRequest = {
-              currentUrl: url,
-              timeout: httpTimeout,
-              rootUrl
-            };
-
-            pool.run(req);
-          }
-        }
-      }
-
-      if (payload.status === 'failed') {
-        set.add(payload.currentUrl);
-
-        timing.failed();
-
-        console.log(
-          `😩 (${timing.visitedUrls}) ${payload.currentUrl} => ${payload.message}`
-        );
-      }
-    });
-  }
-
-  const root = {
-    timeout: httpTimeout,
-    rootUrl: rootUrl,
-    currentUrl: rootUrl
-  };
-
-  timing.start();
-  pool.run(root);
 }
 
-if (isMainThread) {
-  run();
-}
+run();

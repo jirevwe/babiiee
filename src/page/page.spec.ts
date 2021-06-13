@@ -1,4 +1,4 @@
-import { Page } from './index';
+import { Page } from './page';
 import { JSDOM } from 'jsdom';
 import { loadHTMLPage } from './mocks';
 

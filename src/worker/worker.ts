@@ -1,24 +1,18 @@
-import { Page } from '../page';
+import { Page } from '../page/page';
 import { Fetcher } from '../fetcher';
 import { parentPort } from 'worker_threads';
-import { performance } from 'perf_hooks';
 import { WorkerRequest, WorkerResponse } from '../typings';
 
 export default async function fetchHtmlAndExtractLink(message: WorkerRequest) {
   try {
-    const start = performance.now();
-
     const fetcher = new Fetcher(message.timeout);
     const page = new Page(message.rootUrl);
 
     const res = await fetcher.fetch(message.currentUrl);
     const urls = page.getPageUrls(res.window.document);
 
-    const end = performance.now();
-
     const payload: WorkerResponse = {
       status: 'success',
-      timing: end - start,
       currentUrl: message.currentUrl,
       childrenUrls: urls.filter((it) => it.length > 0)
     };

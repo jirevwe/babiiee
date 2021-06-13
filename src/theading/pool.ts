@@ -1,5 +1,5 @@
-import { Worker as Thread } from 'worker_threads';
 import os from 'os';
+import { Worker as Thread } from 'worker_threads';
 
 /**
  * Creates a thread pool
@@ -8,9 +8,12 @@ import os from 'os';
  * @param execFile the file containing the worker function
  * @param jobCallback the result callback (executed on the main thread)
  * @param tasks initial tasks that will be seeded on the queue
+ * @param timeOutCallback callback that's called after the pool has been idle for `threadTimeout` seconds
+ * @param threadTimeout the amount of idle time the pool before the `timeOutCallback` function is called
+ * @param debug print debug infomation
  */
 export interface ThreadPoolOptions<Task, Result> {
-  jobCallback: (result: Result) => {};
+  jobCallback: (result: Result) => Promise<void>;
   timeOutCallback: () => void;
   execFile: string;
 
@@ -57,9 +60,8 @@ export class ThreadPool<Task, Result> {
   /**
    * Adds work to the pool and tries to execute it
    */
-  run(payload: Task) {
+  async run(payload: Task) {
     this.queue.push(payload);
-
     this.runNext();
   }
 

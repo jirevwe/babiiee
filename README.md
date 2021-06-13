@@ -1,13 +1,16 @@
-# Baby (because they crawl 😂💀)
+# Babiiee (Babies crawl I guess 😂💀)
 
-Find all the <a/> tags in an html file while skipping:
+## Setup
 
-- about:blank's
-- empty href tags
+On a Unix (Mac and Linux) machine, run:
 
-It also strips:
+- `bash run.sh` or `chmod +x run.sh && ./run.sh`, this build and tags the image and runs the container in interactive mode.
 
-- permanlinks
-- query params
+On a Windows machine, run:
 
-Child Links must begin with a forward slash (/) or the https scheme, the former will have the parent domain appended
+- `docker build -t rover .`, which builds and tags the image.
+- `docker run -it rover`, runs the container in interactive mode.
+
+## Running the Application
+
+Run `yarn start -h`
