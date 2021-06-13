@@ -8,8 +8,8 @@ On a Unix (Mac and Linux) machine, run:
 
 On a Windows machine, run:
 
-- `docker build -t rover .`, which builds and tags the image.
-- `docker run -it rover`, runs the container in interactive mode.
+- `docker build -t babiiee .`, which builds and tags the image.
+- `docker run -it babiiee`, runs the container in interactive mode.
 
 ## Running the Application
 

@@ -28,7 +28,11 @@ export class Timing {
   }
 
   toHumanReadableTime() {
-    const totalTime = (this.endTime - this.startTime) / (60 * 1000);
-    return totalTime;
+    const totalSeconds = (this.endTime - this.startTime) / 1000;
+
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+
+    return `${mins}m${secs}s`;
   }
 }

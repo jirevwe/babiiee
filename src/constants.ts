@@ -16,7 +16,7 @@ export const sections: Section[] = [
     
     Examples:
     yarn start -u https://example.com -t 30 -c 20
-    yarn start -url https://example.com -timeout 30 -concurrency 20
+    yarn start --url https://example.com --timeout 30 --concurrency 20
     `
   },
   {

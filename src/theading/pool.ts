@@ -33,9 +33,7 @@ export class ThreadPool<Task, Result> {
   constructor(private readonly options: ThreadPoolOptions<Task, Result>) {
     const { tasks, debug, execFile, threadCount } = options;
 
-    if (!debug) {
-      options.debug = false;
-    }
+    options.debug = !!debug;
 
     options.threadTimeout = options.threadTimeout
       ? options.threadTimeout * 1000
