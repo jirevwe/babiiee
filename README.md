@@ -1,4 +1,4 @@
-# Babiiee (Babies crawl I guess 😂💀)
+# Babiiee
 
 ## Setup
 
