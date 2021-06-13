@@ -29,42 +29,48 @@ export class Crawler {
     }
 
     async function jobCallback(payload: WorkerResponse) {
-      if (payload.status === 'success') {
-        set.add(payload.currentUrl);
-        timing.visit();
+      await new Promise((resolve) => {
+        setImmediate(() => {
+          if (payload.status === 'success') {
+            set.add(payload.currentUrl);
+            timing.visit();
 
-        console.log(
-          `🤝 (${timing.visitedUrls}) ` +
-            payload.currentUrl +
-            '\n\t' +
-            payload.childrenUrls.join('\n\t')
-        );
+            console.log(
+              `🤝 (${timing.visitedUrls}) ` +
+                payload.currentUrl +
+                '\n\t' +
+                payload.childrenUrls.join('\n\t')
+            );
 
-        for (const url of payload.childrenUrls) {
-          const doesNotExist =
-            pool.queue.filter((it) => it.currentUrl === url).length === 0;
+            for (const url of payload.childrenUrls) {
+              const exists = pool.queue.find((it) => it.currentUrl === url);
 
-          if (!set.has(url) && doesNotExist) {
-            const req: WorkerRequest = {
-              timeout: httpTimeout,
-              currentUrl: url,
-              rootUrl
-            };
+              if (!exists && !set.has(url)) {
+                const req: WorkerRequest = {
+                  timeout: httpTimeout,
+                  currentUrl: url,
+                  rootUrl
+                };
+                pool.push(req);
+              }
+            }
 
-            pool.run(req);
+            pool.runNext();
           }
-        }
-      }
 
-      if (payload.status === 'failed') {
-        set.add(payload.currentUrl);
+          if (payload.status === 'failed') {
+            set.add(payload.currentUrl);
 
-        timing.failed();
+            timing.failed();
 
-        console.log(
-          `😩 (${timing.failedUrls}) ${payload.currentUrl} => ${payload.message}`
-        );
-      }
+            console.log(
+              `😩 (${timing.failedUrls}) ${payload.currentUrl} => ${payload.message}`
+            );
+          }
+
+          resolve(true);
+        });
+      });
     }
 
     const root: WorkerRequest = {
@@ -74,6 +80,8 @@ export class Crawler {
     };
 
     timing.start();
-    pool.run(root);
+
+    pool.push(root);
+    pool.runNext();
   }
 }

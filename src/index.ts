@@ -31,7 +31,7 @@ async function run() {
 
     const rootUrl = options.url.endsWith('/') ? options.url : options.url + '/';
     const httpTimeout: number = parseInt(options.timeout) || 1000 * 30;
-    const threadCount: number = parseInt(options.concurrency) || 3;
+    const threadCount: number = parseInt(options.concurrency) || 20;
 
     const crawler = new Crawler();
     crawler.crawl(rootUrl, httpTimeout, threadCount);

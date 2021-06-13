@@ -60,15 +60,14 @@ export class ThreadPool<Task, Result> {
   /**
    * Adds work to the pool and tries to execute it
    */
-  async run(payload: Task) {
+  async push(payload: Task) {
     this.queue.push(payload);
-    this.runNext();
   }
 
   /**
    * Picks the first task from queue and runs it
    */
-  private runNext() {
+  runNext() {
     if (this.options.debug) {
       console.log(`queue: ${this.queue.length}, idle: ${this.idle.length}`);
     }
